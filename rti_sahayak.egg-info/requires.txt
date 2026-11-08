@@ -1,3 +1,0 @@
-gradio<7,>=6.31
-anthropic<3,>=2.6
-pydantic<3,>=2.7
