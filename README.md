@@ -54,9 +54,9 @@ Works in **English and Hindi**. No sign-up. Your text is not stored.
 | Structured output with a typed schema | `rti_sahayak/drafter.py` → `Draft`, `draft_with_ai` |
 | Verifier-in-the-loop (generate → check → repair) | `draft_with_ai` + `content_issues` |
 | Evals with a dev set and a held-out set | `evals/` |
-| Graceful fallback when the model fails or refuses | `app.py` → `on_draft` |
+| Graceful fallback when the model fails or refuses | `rti_sahayak/web.py` → `on_draft` |
 | Testing LLM code without API calls (fake client) | `tests/test_drafter.py` |
-| Deploying a no-sign-up web demo | `app.py` (Gradio), `deploy/` |
+| Deploying a no-sign-up web demo | `rti_sahayak/web.py` (Gradio), `deploy/` |
 
 ## Evals
 
@@ -111,7 +111,7 @@ rti_sahayak/
   checker.py     15 checks → Report(risk, issues)
   drafter.py     Claude drafter, offline drafter, English/Hindi letter + first-appeal templates
   deadlines.py   reply / first appeal / second appeal timeline
-app.py           Gradio web app
+rti_sahayak/web.py  Gradio web app (app.py just starts it)
 tests/           59 unit tests (no network needed)
 evals/           checker dev + held-out sets, drafter eval
 ```

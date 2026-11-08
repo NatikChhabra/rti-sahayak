@@ -18,4 +18,4 @@ jobs:
       - name: Drafter eval (offline)
         run: python evals/run_drafter_eval.py
       - name: App builds
-        run: python -c "import app"
+        run: python -c "import rti_sahayak.web"
