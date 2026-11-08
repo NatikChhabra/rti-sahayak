@@ -8,7 +8,6 @@ Type what you want to know in plain English or Hindi. Get an RTI that a Public I
 [![tests](https://github.com/NatikChhabra/rti-sahayak/actions/workflows/ci.yml/badge.svg)](https://github.com/NatikChhabra/rti-sahayak/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/Live%20demo-Hugging%20Face-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/spaces/Natik22may/rti-sahayak)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![YC Gaps #1](https://img.shields.io/badge/series-YC%20Gaps%20%231-orange)
 
 <img src="docs/demo.gif" width="760" alt="RTI Sahayak demo: Gemini drafting an RTI, checking a bad RTI, and calculating appeal deadlines"/>
 
@@ -140,4 +139,4 @@ evals/           checker dev + held-out sets, drafter eval
 
 I built this with **Claude (Anthropic) as a coding and research partner**. Claude wrote most of the code and tests under my direction. I chose the problem, set the quality bar, and reviewed the legal rules and outputs. The held-out eval cases were written by a separate Claude agent that never saw the checker code, to keep the test honest. The live app drafts with Gemini.
 
-Part of **YC Gaps**, a series where I build small, real tools for gaps that YC companies, Hacker News threads and Indian legal pain points point to. Built by [Natik Chhabra](https://github.com/NatikChhabra) · MIT licence.
+One of a series of small, real tools I build for gaps that YC companies, Hacker News threads and Indian legal work point to. The next one, [DPDP Notice Eval](https://github.com/NatikChhabra/dpdp-notice-eval), tests whether AI models can write privacy notices that follow India's data protection law. Built by [Natik Chhabra](https://github.com/NatikChhabra) · MIT licence.
