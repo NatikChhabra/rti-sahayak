@@ -172,7 +172,17 @@ class _GeminiBackend:
 
         self._types, self._errors = types, errors
         key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        self.client = client or genai.Client(api_key=key)
+        # Free-tier Gemini often answers 503 (overloaded) or 429 for a moment: retry a few times with
+        # backoff, and never let one request hang the app.
+        self.client = client or genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(
+                timeout=60_000,  # ms
+                retry_options=types.HttpRetryOptions(
+                    attempts=4, initial_delay=2.0, max_delay=20.0, http_status_codes=[429, 500, 502, 503, 504]
+                ),
+            ),
+        )
         self.model = model or os.environ.get("RTI_GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self.contents: list = []
 
@@ -379,7 +389,7 @@ def draft_offline(need: str, *, authority_hint: str = "") -> tuple[Draft, list[s
         life_or_liberty=bool(re.search(r"\b(arrest|detain|custody|threat\s+to\s+(my\s+)?life)", need, re.I)),
         language="hi" if hindi else "en",
         notes_for_user=notes,
-    ), ["Drafted offline with simple rules (no AI key set)."]
+    ), ["Drafted offline with simple rules."]
 
 
 def _period_from(need: str, hindi: bool) -> str:
