@@ -1,9 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "rti-sahayak"
 version = "0.1.0"
 description = "Write, check and track Right to Information applications (India)"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+dependencies = ["gradio>=6.31,<7", "anthropic>=2.6,<3", "pydantic>=2.7,<3"]
+
+[project.scripts]
+rti-sahayak = "rti_sahayak.web:main"
+
+[tool.setuptools]
+packages = ["rti_sahayak"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
