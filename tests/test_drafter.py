@@ -229,16 +229,16 @@ def test_gemini_falls_back_to_next_model_when_busy():
 
     class Busy(FakeGemini):
         def _gen(self, **kw):
-            if kw["model"] == "gemini-3.8-flash":
+            if kw["model"] == "gemini-3.6-flash":
                 self.calls.append(kw)
                 raise errors.APIError(503, {"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}})
             return super()._gen(**kw)
 
     client = Busy([make_draft(["Copies of the work order."])])
-    d, log = draft_with_ai("road?", provider="gemini", client=client, model="gemini-3.8-flash")
+    d, log = draft_with_ai("road?", provider="gemini", client=client)
     assert d.points == ["Copies of the work order."]
-    assert [c["model"] for c in client.calls] == ["gemini-3.8-flash", "gemini-3.6-flash"]
-    assert "gemini-3.6-flash" in log[0]
+    assert [c["model"] for c in client.calls] == ["gemini-3.6-flash", "gemini-3.8-flash"]
+    assert "gemini-3.8-flash" in log[0]
 
 
 def test_gemini_all_models_busy_gives_clear_error():

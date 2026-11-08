@@ -83,7 +83,7 @@ python evals/run_drafter_eval.py [--ai]               # drafters, judged by the 
 | Gemini + checker repair loop, **first run** (live app, 8 Nov 2026) | **12/15** | Two "misses" were the judge's fault: letters correctly sent to TRAI and the District Education Officer were flagged just for naming Airtel / a private school. The third was a Google timeout (504), so the app fell back to offline. |
 | Same Gemini letters, after fixing the judge | 14/15 | The checker now accepts a private company named in a letter addressed to its regulator. The timed-out case passed when re-run (2.6 s). |
 
-The AI drafts were made by `gemini-3.6-flash`: on the free tier `gemini-3.8-flash` kept answering 503/504, so the app falls back to the next model and remembers it. Most drafts take about 3 seconds.
+The AI drafts were made by `gemini-3.6-flash`. On the free tier the newer `gemini-3.8-flash` kept answering 503/504, so 3.6 is now the default and the others are fallbacks; the app remembers which model answered. Drafts take about 3 seconds.
 
 A "pass" only means the checker found no rule breaks. It doesn't prove the letter is *useful*, which is why a human or LLM judge is the next step (see Limits). Reading the Gemini letters by hand, they are clearly better than the offline ones: they ask for specific records (work orders, measurement books, file notings) where the offline drafter can only quote your question back.
 
@@ -95,7 +95,7 @@ pip install -r requirements.txt
 python app.py                         # open http://127.0.0.1:7860
 ```
 
-For AI drafting, set **`GEMINI_API_KEY`** (default model `gemini-3.8-flash`, change it with `RTI_GEMINI_MODEL`; if it is busy the app falls back to `gemini-3.6-flash`, then `gemini-3.5-flash-lite`, set with `RTI_GEMINI_FALLBACKS`) or `ANTHROPIC_API_KEY` (default `claude-opus-5-5`, change it with `RTI_CLAUDE_MODEL`). If both are set, Gemini is used unless `RTI_AI_PROVIDER=claude`. Run the tests with `pip install -r requirements-dev.txt && pytest`.
+For AI drafting, set **`GEMINI_API_KEY`** (default model `gemini-3.6-flash`, change it with `RTI_GEMINI_MODEL`; if it is busy the app falls back to `gemini-3.8-flash`, then `gemini-3.5-flash-lite`, set with `RTI_GEMINI_FALLBACKS`) or `ANTHROPIC_API_KEY` (default `claude-opus-5-5`, change it with `RTI_CLAUDE_MODEL`). If both are set, Gemini is used unless `RTI_AI_PROVIDER=claude`. Run the tests with `pip install -r requirements-dev.txt && pytest`.
 
 Use it from Python:
 

@@ -24,9 +24,9 @@ from pydantic import BaseModel, Field
 
 from . import checker, rules
 
-DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 # Tried in order when the main model is busy or too slow (free-tier 503/504/429).
-DEFAULT_GEMINI_FALLBACKS = ("gemini-3.6-flash", "gemini-3.5-flash-lite")
+DEFAULT_GEMINI_FALLBACKS = ("gemini-3.8-flash", "gemini-3.5-flash-lite")
 # The model that last answered, remembered for 30 minutes so a busy model isn't retried on every request.
 _gemini_last_good: tuple[str, float] | None = None
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
