@@ -181,7 +181,7 @@ def test_gemini_backend_uses_schema_and_repairs():
     roles = [c.role for c in client.calls[1]["contents"]]
     assert roles == ["user", "model", "user"]
     assert "rule checker" in client.calls[1]["contents"][-1].parts[0].text
-    assert log[0].startswith("Gemini wrote")
+    assert log[0].startswith("Gemini (")
 
 
 def test_gemini_backend_parses_raw_json_and_rejects_garbage():
@@ -220,5 +220,33 @@ def test_gemini_real_client_builds_with_retry_and_timeout(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "dummy-not-a-real-key")
     backend = _GeminiBackend()  # builds the client only; no network call
     opts = backend.client._api_client._http_options
-    assert opts.timeout == 60_000
+    assert opts.timeout == 45_000
     assert 503 in opts.retry_options.http_status_codes
+
+
+def test_gemini_falls_back_to_next_model_when_busy():
+    from google.genai import errors
+
+    class Busy(FakeGemini):
+        def _gen(self, **kw):
+            if kw["model"] == "gemini-3.8-flash":
+                self.calls.append(kw)
+                raise errors.APIError(503, {"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}})
+            return super()._gen(**kw)
+
+    client = Busy([make_draft(["Copies of the work order."])])
+    d, log = draft_with_ai("road?", provider="gemini", client=client, model="gemini-3.8-flash")
+    assert d.points == ["Copies of the work order."]
+    assert [c["model"] for c in client.calls] == ["gemini-3.8-flash", "gemini-3.6-flash"]
+    assert "gemini-3.6-flash" in log[0]
+
+
+def test_gemini_all_models_busy_gives_clear_error():
+    from google.genai import errors
+
+    class AllBusy(FakeGemini):
+        def _gen(self, **kw):
+            raise errors.APIError(504, {"error": {"code": 504, "message": "Deadline expired", "status": "X"}})
+
+    with pytest.raises(DraftError, match="504: Deadline expired"):
+        draft_with_ai("road?", provider="gemini", client=AllBusy([]))
