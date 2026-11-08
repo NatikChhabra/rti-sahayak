@@ -1,0 +1,15 @@
+{"id": "road-why", "need": "Why has the road in ward 12 of Bilaspur not been repaired since 2023? When will it be fixed?", "authority": "Municipal Corporation, Bilaspur", "expect": {}}
+{"id": "scholarship-grievance", "need": "I applied for post-matric scholarship in August 2025 and still haven't got it. Please release my money and punish the clerk.", "authority": "", "expect": {}}
+{"id": "hdfc-private", "need": "HDFC Bank deducted Rs 590 as 'processing charges' from my savings account in October 2025 and won't explain it.", "authority": "", "expect": {"private": true}}
+{"id": "airtel-private", "need": "Airtel is charging me for a plan I never activated.", "authority": "", "expect": {"private": true}}
+{"id": "private-school", "need": "The private school my sister studies in raised fees by 40% this year. Is it allowed?", "authority": "", "expect": {"private": true}}
+{"id": "hindi-handpump", "need": "मेरे गाँव में 2024 में बने हैंडपंप का पैसा कितना मंज़ूर हुआ और काम कब पूरा होगा?", "authority": "ग्राम पंचायत, तखतपुर", "expect": {"hindi": true}}
+{"id": "hindi-ration", "need": "मेरा राशन कार्ड छह महीने से क्यों नहीं बना?", "authority": "", "expect": {"hindi": true}}
+{"id": "neighbour-itr", "need": "My neighbour built a huge house. I want his income tax returns to see where the money came from.", "authority": "", "expect": {}}
+{"id": "arrest", "need": "My brother was arrested yesterday by Sarkanda police and we don't know where he is kept.", "authority": "Superintendent of Police, Bilaspur", "expect": {"life": true}}
+{"id": "pension-status", "need": "My father's pension file has been pending in the treasury since March 2025. What is the status and who is sitting on it?", "authority": "District Treasury Office, Raipur", "expect": {}}
+{"id": "exam-marks", "need": "I want to see my answer sheet of the CG Board class 12 Physics exam 2025 because I think my marks are wrong.", "authority": "Chhattisgarh Board of Secondary Education", "expect": {}}
+{"id": "streetlight-vague", "need": "I want all information about streetlights.", "authority": "Nagar Nigam, Durg", "expect": {}}
+{"id": "train-cancel", "need": "Why was train 18239 cancelled on 3 August 2025 without notice? Is that legal?", "authority": "", "expect": {}}
+{"id": "pmay", "need": "I applied for PM Awas Yojana in 2023. Others got houses but I didn't. Why? When will I get it?", "authority": "Janpad Panchayat, Masturi", "expect": {}}
+{"id": "hospital-medicine", "need": "The government hospital in Mungeli says medicines are out of stock every month. How much stock was bought in 2025 and what was given out?", "authority": "", "expect": {}}

@@ -1,0 +1,5 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]  # long user-facing strings and regexes read better unbroken
