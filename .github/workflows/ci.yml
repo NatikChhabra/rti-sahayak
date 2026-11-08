@@ -1,0 +1,21 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check . && ruff format --check .
+      - run: pytest -q
+      - name: Checker eval (dev set)
+        run: python evals/run_checker_eval.py
+      - name: Checker eval (held-out set)
+        run: python evals/run_checker_eval.py heldout_cases.jsonl
+      - name: Drafter eval (offline)
+        run: python evals/run_drafter_eval.py
+      - name: App builds
+        run: python -c "import app"
