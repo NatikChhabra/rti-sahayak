@@ -1,3 +1,4 @@
 gradio==6.31.0
 anthropic==2.6.0
+google-genai==3.0.0
 pydantic>=2.7,<3

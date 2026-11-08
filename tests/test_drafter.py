@@ -79,6 +79,8 @@ def test_content_issues():
 class FakeClient:
     """Stands in for anthropic.Anthropic(): returns queued drafts, records requests."""
 
+    provider = "claude"
+
     def __init__(self, drafts, stop_reason="end_turn"):
         self.drafts = list(drafts)
         self.calls = []
@@ -94,7 +96,7 @@ class FakeClient:
 
 def test_ai_clean_draft_returns_first_try():
     client = FakeClient([make_draft(["Copies of the work order."])])
-    d, log = draft_with_ai("road?", client=client)
+    d, log = draft_with_ai("road?", provider="claude", client=client)
     assert len(client.calls) == 1 and d.points == ["Copies of the work order."]
     assert client.calls[0]["output_format"] is Draft
     assert client.calls[0]["fallbacks"] == "default"
@@ -102,9 +104,10 @@ def test_ai_clean_draft_returns_first_try():
 
 def test_ai_repair_loop_sends_checker_feedback():
     client = FakeClient([make_draft(["Why was the road not repaired?"]), make_draft(["Copies of the notings."])])
-    d, log = draft_with_ai("road?", client=client)
+    d, log = draft_with_ai("road?", provider="claude", client=client)
     assert len(client.calls) == 2
     feedback = client.calls[1]["messages"][-1]["content"]
+    assert client.calls[1]["messages"][-2]["role"] == "assistant"
     assert "rule checker" in feedback and "why" in feedback.lower()
     assert d.points == ["Copies of the notings."]
     assert "fixed" in log[-1]
@@ -113,13 +116,13 @@ def test_ai_repair_loop_sends_checker_feedback():
 def test_ai_gives_up_after_max_repairs():
     bad = make_draft(["Why was the road not repaired?"])
     client = FakeClient([bad, bad])
-    d, log = draft_with_ai("road?", client=client, max_repairs=1)
+    d, log = draft_with_ai("road?", provider="claude", client=client, max_repairs=1)
     assert len(client.calls) == 2 and "Kept the draft" in log[-1]
 
 
 def test_ai_refusal_raises():
     with pytest.raises(DraftError):
-        draft_with_ai("road?", client=FakeClient([None], stop_reason="refusal"))
+        draft_with_ai("road?", provider="claude", client=FakeClient([None], stop_reason="refusal"))
 
 
 def test_first_appeal_no_reply():
@@ -151,3 +154,60 @@ def test_offline_drops_demands_and_explains():
 def test_offline_only_demands_raises():
     with pytest.raises(DraftError):
         draft_offline("Take strict action against the clerk.")
+
+
+class FakeGemini:
+    """Stands in for google.genai.Client(): client.models.generate_content(...)."""
+
+    def __init__(self, outputs):
+        self.outputs = list(outputs)  # Draft objects, or raw JSON strings
+        self.calls = []
+        self.models = SimpleNamespace(generate_content=self._gen)
+
+    def _gen(self, **kw):
+        self.calls.append(kw)
+        out = self.outputs.pop(0)
+        if isinstance(out, Draft):
+            return SimpleNamespace(parsed=out, text=out.model_dump_json())
+        return SimpleNamespace(parsed=None, text=out)
+
+
+def test_gemini_backend_uses_schema_and_repairs():
+    client = FakeGemini([make_draft(["Why was the road not repaired?"]), make_draft(["Copies of the notings."])])
+    d, log = draft_with_ai("road?", provider="gemini", client=client)
+    assert d.points == ["Copies of the notings."]
+    first = client.calls[0]
+    assert first["config"].response_schema is Draft and first["config"].response_mime_type == "application/json"
+    roles = [c.role for c in client.calls[1]["contents"]]
+    assert roles == ["user", "model", "user"]
+    assert "rule checker" in client.calls[1]["contents"][-1].parts[0].text
+    assert log[0].startswith("Gemini wrote")
+
+
+def test_gemini_backend_parses_raw_json_and_rejects_garbage():
+    good = make_draft(["Copies of the work order."]).model_dump_json()
+    d, _ = draft_with_ai("road?", provider="gemini", client=FakeGemini([good]))
+    assert d.points == ["Copies of the work order."]
+    with pytest.raises(DraftError):
+        draft_with_ai("road?", provider="gemini", client=FakeGemini(["not json"]))
+
+
+def test_provider_picked_from_env(monkeypatch):
+    from rti_sahayak.drafter import ai_provider
+
+    for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "RTI_AI_PROVIDER"):
+        monkeypatch.delenv(k, raising=False)
+    assert ai_provider() is None
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    assert ai_provider() == "claude"
+    monkeypatch.setenv("GEMINI_API_KEY", "y")
+    assert ai_provider() == "gemini"
+    monkeypatch.setenv("RTI_AI_PROVIDER", "claude")
+    assert ai_provider() == "claude"
+
+
+def test_no_key_raises(monkeypatch):
+    for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "RTI_AI_PROVIDER"):
+        monkeypatch.delenv(k, raising=False)
+    with pytest.raises(DraftError):
+        draft_with_ai("road?")
