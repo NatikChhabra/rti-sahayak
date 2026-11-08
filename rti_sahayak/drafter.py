@@ -179,7 +179,7 @@ class _GeminiBackend:
             http_options=types.HttpOptions(
                 timeout=60_000,  # ms
                 retry_options=types.HttpRetryOptions(
-                    attempts=4, initial_delay=2.0, max_delay=20.0, http_status_codes=[429, 500, 502, 503, 504]
+                    attempts=3, initial_delay=2.0, max_delay=20.0, http_status_codes=[429, 500, 502, 503, 504]
                 ),
             ),
         )
@@ -208,7 +208,8 @@ class _GeminiBackend:
                 ) from e
             if e.code == 429:
                 raise DraftError("Too many requests right now (or the free quota is used up). Try again later.") from e
-            raise DraftError(f"The AI service returned an error ({e.code}).") from e
+            detail = " ".join(str(e.message or e.status or "").split())[:160]
+            raise DraftError(f"The AI service returned an error ({e.code}{': ' + detail if detail else ''}).") from e
         except Exception as e:  # network errors surface as httpx exceptions
             raise DraftError("Couldn't reach the AI service.") from e
         draft = resp.parsed if isinstance(resp.parsed, Draft) else None
