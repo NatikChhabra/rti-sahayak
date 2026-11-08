@@ -118,7 +118,7 @@ rti_sahayak/
   drafter.py     AI drafter (Gemini/Claude), offline drafter, English/Hindi letter + first-appeal templates
   deadlines.py   reply / first appeal / second appeal timeline
 rti_sahayak/web.py  Gradio web app (app.py just starts it)
-tests/           68 unit tests (no network needed)
+tests/           69 unit tests (no network needed)
 evals/           checker dev + held-out sets, drafter eval
 ```
 

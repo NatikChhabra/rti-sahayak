@@ -95,6 +95,8 @@ How RTI works (follow this strictly):
 - Life or liberty (detention, custody, threat to life) gets a 48-hour deadline: set life_or_liberty
   only when that is genuinely the case.
 - Write the points in the user's language (Hindi or English), in simple formal language.
+- Today's date is given in <today>. Read relative dates against it: "in March" or "last year" mean the
+  most recent one before today, never a year you assume.
 - Do not invent facts, names, file numbers or addresses. Use placeholders like <ward number> for
   things the user must fill in, and mention them in notes_for_user.
 """
@@ -302,7 +304,10 @@ def draft_with_ai(
         raise DraftError("No AI key set. Add GEMINI_API_KEY (or ANTHROPIC_API_KEY).")
     ai = _BACKENDS[provider](client=client, model=model)
 
-    user = f"<what_i_want_to_know>\n{need.strip()}\n</what_i_want_to_know>"
+    user = (
+        f"<today>{date.today().strftime('%d %B %Y')}</today>\n"
+        f"<what_i_want_to_know>\n{need.strip()}\n</what_i_want_to_know>"
+    )
     if authority_hint.strip():
         user += f"\n<office_i_think_holds_it>{authority_hint.strip()}</office_i_think_holds_it>"
     log: list[str] = []
