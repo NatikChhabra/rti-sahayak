@@ -7,3 +7,5 @@ venv/
 .gradio/
 flagged/
 evals/drafter_results.json
+build/
+*.egg-info/
