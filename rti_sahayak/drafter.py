@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal
@@ -26,6 +27,8 @@ from . import checker, rules
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 # Tried in order when the main model is busy or too slow (free-tier 503/504/429).
 DEFAULT_GEMINI_FALLBACKS = ("gemini-3.6-flash", "gemini-3.5-flash-lite")
+# The model that last answered, remembered for 30 minutes so a busy model isn't retried on every request.
+_gemini_last_good: tuple[str, float] | None = None
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 
 
@@ -189,6 +192,10 @@ class _GeminiBackend:
         env_fb = os.environ.get("RTI_GEMINI_FALLBACKS")
         fallbacks = [m.strip() for m in env_fb.split(",")] if env_fb is not None else list(DEFAULT_GEMINI_FALLBACKS)
         self.models = [self.model] + [m for m in fallbacks if m and m != self.model]
+        good = _gemini_last_good
+        if client is None and good and good[0] in self.models and time.monotonic() - good[1] < 1800:
+            self.models = [good[0]] + [m for m in self.models if m != good[0]]
+        self._remember = client is None
         self.contents: list = []
 
     def _call(self, model: str):
@@ -223,6 +230,9 @@ class _GeminiBackend:
                 last = e
                 continue
             self.model = model
+            if self._remember:
+                global _gemini_last_good
+                _gemini_last_good = (model, time.monotonic())
             self.models = [model] + [m for m in self.models if m != model]  # stick with the one that works
             break
         else:
