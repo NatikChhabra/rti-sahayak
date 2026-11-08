@@ -211,3 +211,14 @@ def test_no_key_raises(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     with pytest.raises(DraftError):
         draft_with_ai("road?")
+
+
+def test_gemini_real_client_builds_with_retry_and_timeout(monkeypatch):
+    pytest.importorskip("google.genai")
+    from rti_sahayak.drafter import _GeminiBackend
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-not-a-real-key")
+    backend = _GeminiBackend()  # builds the client only; no network call
+    opts = backend.client._api_client._http_options
+    assert opts.timeout == 60_000
+    assert 503 in opts.retry_options.http_status_codes
