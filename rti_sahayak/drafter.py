@@ -48,7 +48,7 @@ class Draft(BaseModel):
         "never opinions, never action."
     )
     period: str = Field(
-        description="Time period the records cover, e.g. '1 April 2024 to 31 March 2025', or '' if not needed."
+        description="Time period the records cover, e.g. '1 April 2024 to 31 March 2025' or '1 January 2023 to date', or '' if not needed."
     )
     life_or_liberty: bool = Field(
         description="True only if the information genuinely concerns someone's life or liberty."
@@ -491,9 +491,39 @@ def _contact_lines(a: Applicant, hindi: bool) -> list[str]:
     return lines
 
 
+_PIO_PREFIX = re.compile(
+    r"^\s*((the\s+)?office\s+of\s+)?(the\s+)?(central\s+|state\s+)?(public\s+information\s+officer|c?pio|s?pio)\b[\s,:-]*",
+    re.I,
+)
+_PIO_PREFIX_HI = re.compile(r"^\s*(कार्यालय\s+)?(लोक|जन)\s+सूचना\s+अधिकारी[\s,:-]*")
+
+
+def _clean_authority(name: str) -> str:
+    """The letter already says 'The Public Information Officer,' so drop it if the office name repeats it."""
+    cleaned = _PIO_PREFIX_HI.sub("", _PIO_PREFIX.sub("", name)).strip(" ,")
+    return cleaned or name.strip()
+
+
+def _clean_period(period: str) -> str:
+    """Models often write '1 January 2023 to till date'; make it read '1 January 2023 to date'."""
+    return re.sub(
+        r"\bto\s+till\s+date\b|\btill\s+date\b|\bto\s+the\s+present\b|\bto\s+present\b",
+        "to date",
+        period.strip(),
+        flags=re.I,
+    )
+
+
 def render_letter(d: Draft, a: Applicant | None = None) -> str:
     """The final application text, ready to print or paste into rtionline.gov.in."""
     a = a or Applicant()
+    d = d.model_copy(
+        update={
+            "public_authority": _clean_authority(d.public_authority),
+            "period": _clean_period(d.period),
+            "points": [re.sub(r"\bto\s+till\s+date\b", "to date", p, flags=re.I) for p in d.points],
+        }
+    )
     points = "\n".join(f"{i}. {p}" for i, p in enumerate(d.points, 1))
     fee_key = a.fee_mode if a.fee_mode in _FEE_EN else "Indian Postal Order"
     if d.language == "hi":

@@ -10,7 +10,9 @@ Type what you want to know in plain English or Hindi. Get an RTI that a Public I
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![YC Gaps #1](https://img.shields.io/badge/series-YC%20Gaps%20%231-orange)
 
-<img src="docs/demo.gif" width="760" alt="RTI Sahayak demo: checking a bad RTI, drafting a good one, and calculating appeal deadlines"/>
+<img src="docs/demo.gif" width="760" alt="RTI Sahayak demo: Gemini drafting an RTI, checking a bad RTI, and calculating appeal deadlines"/>
+
+<sub>The draft in this GIF is a real Gemini answer from the live app, replayed locally for recording.</sub>
 
 </div>
 
@@ -116,7 +118,7 @@ rti_sahayak/
   drafter.py     AI drafter (Gemini/Claude), offline drafter, English/Hindi letter + first-appeal templates
   deadlines.py   reply / first appeal / second appeal timeline
 rti_sahayak/web.py  Gradio web app (app.py just starts it)
-tests/           67 unit tests (no network needed)
+tests/           68 unit tests (no network needed)
 evals/           checker dev + held-out sets, drafter eval
 ```
 
@@ -127,6 +129,7 @@ evals/           checker dev + held-out sets, drafter eval
 - **The checker uses rules, not understanding.** It looks for patterns. An unusual phrasing can slip past, and an innocent sentence can occasionally get flagged. Real held-out precision and recall were 0.94 and 0.89 before fixes.
 - **The eval sets are small and synthetic.** They are 50 hand-written cases modelled on common mistakes, not real filed RTIs. The next step is a set of real (anonymised) RTIs with their actual outcomes.
 - **The AI can guess the wrong office.** When it guesses, the app tells you to confirm the PIO address on the department's website or [rtionline.gov.in](https://rtionline.gov.in).
+- **The free Gemini tier is sometimes slow or busy.** The app retries, then tries another model, and if all fail it drafts offline and tells you so.
 - **Deadlines are calendar-day estimates.** Holidays, postal delays and how a commission counts days can shift them by a few days.
 
 ## Legal sources

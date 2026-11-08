@@ -250,3 +250,17 @@ def test_gemini_all_models_busy_gives_clear_error():
 
     with pytest.raises(DraftError, match="504: Deadline expired"):
         draft_with_ai("road?", provider="gemini", client=AllBusy([]))
+
+
+def test_letter_does_not_repeat_pio_and_fixes_till_date():
+    d = make_draft(["Copies of the work order from 1 January 2023 to till date."]).model_copy(
+        update={
+            "public_authority": "Office of the Public Information Officer, Municipal Corporation, Bilaspur",
+            "period": "1 January 2023 to till date",
+        }
+    )
+    letter = render_letter(d, Applicant(name="A", address="House 1, Bilaspur 495001"))
+    assert letter.count("Public Information Officer") == 1
+    assert "Municipal Corporation, Bilaspur" in letter
+    assert "for the period 1 January 2023 to date:" in letter
+    assert "till date" not in letter
