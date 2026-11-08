@@ -102,6 +102,14 @@ def test_ai_clean_draft_returns_first_try():
     assert client.calls[0]["fallbacks"] == "default"
 
 
+def test_ai_prompt_carries_todays_date():
+    from datetime import date
+
+    client = FakeClient([make_draft(["Copies of the work order."])])
+    draft_with_ai("road repaired in March", provider="claude", client=client)
+    assert f"<today>{date.today().strftime('%d %B %Y')}</today>" in client.calls[0]["messages"][0]["content"]
+
+
 def test_ai_repair_loop_sends_checker_feedback():
     client = FakeClient([make_draft(["Why was the road not repaired?"]), make_draft(["Copies of the notings."])])
     d, log = draft_with_ai("road?", provider="claude", client=client)
