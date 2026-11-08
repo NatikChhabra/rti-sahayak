@@ -77,12 +77,15 @@ python evals/run_drafter_eval.py [--ai]               # drafters, judged by the 
 
 **Drafter** (does each draft come out as a valid RTI?) on 15 realistic needs: why/when questions, grievances, private banks, Hindi, an arrest, and others.
 
-| Drafter | Pass |
-|---|---|
-| Offline (rules only) | 12/15 |
-| LLM + checker repair loop | Run `python evals/run_drafter_eval.py --ai` (≈15–30 API calls, fine on Gemini's free tier) |
+| Drafter | Pass | Notes |
+|---|---|---|
+| Offline (rules only) | 12/15 | Can't pick the regulator for private companies; can't make vague requests specific. |
+| Gemini + checker repair loop, **first run** (live app, 8 Nov 2026) | **12/15** | Two "misses" were the judge's fault: letters correctly sent to TRAI and the District Education Officer were flagged just for naming Airtel / a private school. The third was a Google timeout (504), so the app fell back to offline. |
+| Same Gemini letters, after fixing the judge | 14/15 | The checker now accepts a private company named in a letter addressed to its regulator. The timed-out case passed when re-run (2.6 s). |
 
-The offline drafter fails on private companies (it can only warn you; it can't pick the regulator) and on vague requests. Those are the cases the AI drafter exists for. Note that a "pass" only means the checker found no rule breaks. It doesn't prove the letter is *useful*, which is why a human or LLM judge is the next step (see Limits).
+The AI drafts were made by `gemini-3.6-flash`: on the free tier `gemini-3.8-flash` kept answering 503/504, so the app falls back to the next model and remembers it. Most drafts take about 3 seconds.
+
+A "pass" only means the checker found no rule breaks. It doesn't prove the letter is *useful*, which is why a human or LLM judge is the next step (see Limits). Reading the Gemini letters by hand, they are clearly better than the offline ones: they ask for specific records (work orders, measurement books, file notings) where the offline drafter can only quote your question back.
 
 ## Run it yourself
 
@@ -113,7 +116,7 @@ rti_sahayak/
   drafter.py     AI drafter (Gemini/Claude), offline drafter, English/Hindi letter + first-appeal templates
   deadlines.py   reply / first appeal / second appeal timeline
 rti_sahayak/web.py  Gradio web app (app.py just starts it)
-tests/           63 unit tests (no network needed)
+tests/           67 unit tests (no network needed)
 evals/           checker dev + held-out sets, drafter eval
 ```
 

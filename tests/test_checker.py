@@ -191,3 +191,13 @@ def test_subject_line_quoting_a_question_is_fine():
 def test_signature_date_is_not_a_period():
     text = GOOD.replace("Please provide, for the period 1 April 2024 to 31 March 2025:", "Please provide:")
     assert "VAGUE" in codes(text + "\n3. All information about roads.\nDate: 08-11-2026")
+
+
+def test_private_company_named_in_letter_to_regulator_is_fine():
+    to_trai = (
+        "To,\nThe Public Information Officer,\nTelecom Regulatory Authority of India (TRAI), New Delhi\n\n"
+        "Subject: RTI\n\nPlease provide copies of complaints received against Airtel in 2025."
+    )
+    assert "PRIVATE_BODY" not in check(to_trai).codes
+    to_company = "To,\nThe Public Information Officer,\nHDFC Bank, Mumbai\n\nSubject: RTI\n\nCopies of my charges."
+    assert "PRIVATE_BODY" in check(to_company).codes
