@@ -1,6 +1,6 @@
 """RTI Sahayak web demo (Gradio). Run: python app.py  (or `rti-sahayak` once installed)
 
-With ANTHROPIC_API_KEY set, drafting uses Claude. Without it, everything still
+With GEMINI_API_KEY (or ANTHROPIC_API_KEY) set, drafting uses AI. Without it, everything still
 works: drafting falls back to the rule-based drafter, and checking and deadlines
 never need AI.
 """
@@ -15,9 +15,10 @@ import gradio as gr
 
 from . import Applicant, check, draft_offline, draft_with_ai, render_letter, timeline
 from .checker import ERROR, TIP, WARNING, Report
-from .drafter import GROUNDS, DraftError, render_first_appeal
+from .drafter import GROUNDS, DraftError, ai_provider, render_first_appeal
 
-AI_ON = bool(os.environ.get("ANTHROPIC_API_KEY"))
+PROVIDER = ai_provider()
+AI_ON = PROVIDER is not None
 REPO_URL = "https://github.com/NatikChhabra/rti-sahayak"
 
 ICON = {ERROR: "🔴", WARNING: "🟠", TIP: "🔵"}
@@ -199,7 +200,7 @@ with gr.Blocks(title="RTI Sahayak") as demo:
         "**Write, check and track Right to Information applications (India).** "
         "Over 53,000 RTI complaints were returned in a single year for avoidable mistakes. "
         "This catches them before you post.\n\n"
-        f"<small>{'🤖 AI drafting on (Claude)' if AI_ON else '⚙️ Offline mode: rule-based drafting (no AI key set)'} · "
+        f"<small>{f'🤖 AI drafting on ({PROVIDER.title()})' if AI_ON else '⚙️ Offline mode: rule-based drafting (no AI key set)'} · "
         f"Central RTI Act 2005 + RTI Rules 2012 · Not legal advice · [Source code]({REPO_URL})</small>",
         elem_id="hero",
     )

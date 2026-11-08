@@ -2,7 +2,7 @@
 
 Usage:
   python evals/run_drafter_eval.py            # offline drafter only (free)
-  python evals/run_drafter_eval.py --ai       # also the Claude drafter (needs ANTHROPIC_API_KEY; ~15 API calls)
+  python evals/run_drafter_eval.py --ai       # also the AI drafter (needs GEMINI_API_KEY or ANTHROPIC_API_KEY; ~15-30 API calls)
 
 How a draft is scored (all automatic, using the rule checker as the judge):
   * clean      - the rendered letter has no error/warning from the checker
@@ -76,12 +76,12 @@ def run(name: str, fn, cases: list[dict]) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ai", action="store_true", help="also run the Claude drafter")
+    ap.add_argument("--ai", action="store_true", help="also run the AI drafter")
     args = ap.parse_args()
     cases = [json.loads(line) for line in NEEDS.read_text(encoding="utf-8").splitlines() if line.strip()]
     results = {"offline": run("Offline drafter (rules only)", draft_offline, cases)}
     if args.ai:
-        results["ai"] = run("Claude drafter (with checker repair loop)", draft_with_ai, cases)
+        results["ai"] = run("AI drafter (with checker repair loop)", draft_with_ai, cases)
     out = Path(__file__).with_name("drafter_results.json")
     out.write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\nSaved {out.name}")

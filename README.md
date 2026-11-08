@@ -27,7 +27,7 @@ Most of these mistakes are small and predictable: no fee, letters not addressed 
 
 | | |
 |---|---|
-| ✍️ **Write my RTI** | Describe your problem in your own words. Claude turns it into a formal application. It rewrites "why" and "when will" questions as requests for records, removes demands for action, and sends questions about private companies to the right regulator (RBI, TRAI, RERA…). |
+| ✍️ **Write my RTI** | Describe your problem in your own words. An LLM (Gemini or Claude) turns it into a formal application. It rewrites "why" and "when will" questions as requests for records, removes demands for action, and sends questions about private companies to the right regulator (RBI, TRAI, RERA…). |
 | 🔍 **Check my RTI** | Paste any RTI. It flags **15 common mistakes**, each with a plain-language reason, a fix, and the section of the law it comes from. |
 | 📅 **Deadlines & appeal** | Enter your filing date. It shows when the reply is due (30 days, 35 via an APIO, 40 with third parties, 48 hours for life or liberty), whether it is now a deemed refusal, the first and second appeal windows, and it drafts your first appeal. |
 
@@ -36,22 +36,23 @@ Works in **English and Hindi**. No sign-up. Your text is not stored.
 ## How it works
 
 ```
- your words ──► Claude (structured output: authority, subject, points, period…)
+ your words ──► LLM: Gemini or Claude (structured output: authority, subject, points, period…)
                    │
                    ▼
-              rule checker ──► problems found? ──► Claude fixes them (1 repair round)
+              rule checker ──► problems found? ──► the LLM fixes them (1 repair round)
                    │                                         │
                    ▼                                         ▼
               letter template (English / Hindi) ──► final checker report shown to you
 ```
 
 - **The checker is plain Python rules, not AI.** It is fast, free, testable and explainable, and every flag cites the Act or Rules. It also acts as the **judge** for the AI drafter.
-- **The AI drafter** uses Claude with [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs): it fills a typed `Draft` schema rather than writing free text, so the letter format is always correct. The checker then reviews the draft, and if it finds problems Claude gets one chance to fix them (*generate → verify → repair*).
+- **The AI drafter** asks an LLM for structured output: it fills a typed `Draft` schema ([Gemini JSON schema](https://ai.google.dev/gemini-api/docs/structured-output) or [Claude structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)) rather than writing free text, so the letter format is always correct. The checker then reviews the draft, and if it finds problems the model gets one chance to fix them (*generate → verify → repair*). Both providers sit behind one small interface, so swapping models is one environment variable.
 - **No API key? It still works.** A rule-based offline drafter takes over, and the eval below compares the two.
 
 | AI engineering skill | Where it is in the code |
 |---|---|
 | Structured output with a typed schema | `rti_sahayak/drafter.py` → `Draft`, `draft_with_ai` |
+| Provider-agnostic LLM layer (Gemini + Claude) | `_GeminiBackend`, `_ClaudeBackend`, `ai_provider` |
 | Verifier-in-the-loop (generate → check → repair) | `draft_with_ai` + `content_issues` |
 | Evals with a dev set and a held-out set | `evals/` |
 | Graceful fallback when the model fails or refuses | `rti_sahayak/web.py` → `on_draft` |
@@ -79,7 +80,7 @@ python evals/run_drafter_eval.py [--ai]               # drafters, judged by the 
 | Drafter | Pass |
 |---|---|
 | Offline (rules only) | 12/15 |
-| Claude + checker repair loop | Run `python evals/run_drafter_eval.py --ai` (≈15 API calls) |
+| LLM + checker repair loop | Run `python evals/run_drafter_eval.py --ai` (≈15–30 API calls, fine on Gemini's free tier) |
 
 The offline drafter fails on private companies (it can only warn you; it can't pick the regulator) and on vague requests. Those are the cases the AI drafter exists for. Note that a "pass" only means the checker found no rule breaks. It doesn't prove the letter is *useful*, which is why a human or LLM judge is the next step (see Limits).
 
@@ -91,7 +92,7 @@ pip install -r requirements.txt
 python app.py                         # open http://127.0.0.1:7860
 ```
 
-For AI drafting, set `ANTHROPIC_API_KEY` first. The default model is `claude-opus-5-5`; pick another with `RTI_MODEL`. Run the tests with `pip install -r requirements-dev.txt && pytest`.
+For AI drafting, set **`GEMINI_API_KEY`** (default model `gemini-3.8-flash`, change it with `RTI_GEMINI_MODEL`) or `ANTHROPIC_API_KEY` (default `claude-opus-5-5`, change it with `RTI_CLAUDE_MODEL`). If both are set, Gemini is used unless `RTI_AI_PROVIDER=claude`. Run the tests with `pip install -r requirements-dev.txt && pytest`.
 
 Use it from Python:
 
@@ -109,10 +110,10 @@ print(timeline("2026-10-01").advice)
 rti_sahayak/
   rules.py       every fee, limit and deadline, with its section of the Act/Rules
   checker.py     15 checks → Report(risk, issues)
-  drafter.py     Claude drafter, offline drafter, English/Hindi letter + first-appeal templates
+  drafter.py     AI drafter (Gemini/Claude), offline drafter, English/Hindi letter + first-appeal templates
   deadlines.py   reply / first appeal / second appeal timeline
 rti_sahayak/web.py  Gradio web app (app.py just starts it)
-tests/           59 unit tests (no network needed)
+tests/           63 unit tests (no network needed)
 evals/           checker dev + held-out sets, drafter eval
 ```
 
@@ -131,6 +132,6 @@ evals/           checker dev + held-out sets, drafter eval
 
 ## Built with AI, openly
 
-I built this with **Claude (Anthropic) as a coding and research partner**. Claude wrote most of the code and tests under my direction. I chose the problem, set the quality bar, and reviewed the legal rules and outputs. The held-out eval cases were written by a separate Claude agent that never saw the checker code, to keep the test honest. The app itself uses Claude for drafting.
+I built this with **Claude (Anthropic) as a coding and research partner**. Claude wrote most of the code and tests under my direction. I chose the problem, set the quality bar, and reviewed the legal rules and outputs. The held-out eval cases were written by a separate Claude agent that never saw the checker code, to keep the test honest. The live app drafts with Gemini.
 
 Part of **YC Gaps**, a series where I build small, real tools for gaps that YC companies, Hacker News threads and Indian legal pain points point to. Built by [Natik Chhabra](https://github.com/NatikChhabra) · MIT licence.

@@ -2,9 +2,9 @@
 
 Two drafters share one output format (`Draft`):
 
-* `draft_with_ai`  - Claude writes the draft as structured output, then the rule
-  checker reviews it and Claude gets one chance to fix anything flagged
-  (generate -> verify -> repair).
+* `draft_with_ai`  - an LLM (Gemini or Claude) writes the draft as structured output,
+  then the rule checker reviews it and the model gets one chance to fix anything
+  flagged (generate -> verify -> repair).
 * `draft_offline`  - a simple rule-based drafter. No API key needed; it is the
   baseline the AI drafter is measured against in `evals/`.
 
@@ -23,11 +23,12 @@ from pydantic import BaseModel, Field
 
 from . import checker, rules
 
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 
 
 class Draft(BaseModel):
-    """What goes into an RTI application. This is the schema Claude fills in."""
+    """What goes into an RTI application. This is the schema the AI fills in."""
 
     public_authority: str = Field(
         description="The government office that most likely holds the records, e.g. "
@@ -117,85 +118,164 @@ def content_issues(d: Draft) -> list[checker.Issue]:
     return issues
 
 
-def draft_with_ai(
-    need: str,
-    *,
-    authority_hint: str = "",
-    client=None,
-    model: str | None = None,
-    max_repairs: int = 1,
-) -> tuple[Draft, list[str]]:
-    """Ask Claude for a Draft, then let the rule checker review it and request fixes.
+class _ClaudeBackend:
+    """Claude via the Anthropic SDK, with structured output and server-side refusal fallback."""
 
-    Returns (draft, log) where log is a list of human-readable steps for the UI.
-    Raises DraftError if no usable draft could be produced.
-    """
-    import anthropic
+    name = "Claude"
 
-    if not need or not need.strip():
-        raise DraftError("Tell me what information you want first.")
-    client = client or anthropic.Anthropic()
-    model = model or os.environ.get("RTI_MODEL", DEFAULT_MODEL)
+    def __init__(self, client=None, model: str | None = None):
+        import anthropic
 
-    user = f"<what_i_want_to_know>\n{need.strip()}\n</what_i_want_to_know>"
-    if authority_hint.strip():
-        user += f"\n<office_i_think_holds_it>{authority_hint.strip()}</office_i_think_holds_it>"
-    messages: list[dict] = [{"role": "user", "content": user}]
-    log: list[str] = []
+        self._sdk = anthropic
+        self.client = client or anthropic.Anthropic()
+        self.model = model or os.environ.get("RTI_CLAUDE_MODEL", DEFAULT_CLAUDE_MODEL)
+        self.messages: list[dict] = []
 
-    for attempt in range(max_repairs + 1):
+    def ask(self, user_text: str) -> Draft:
+        a = self._sdk
+        self.messages.append({"role": "user", "content": user_text})
         try:
-            resp = client.beta.messages.parse(
-                model=model,
+            resp = self.client.beta.messages.parse(
+                model=self.model,
                 max_tokens=16000,
                 system=SYSTEM_PROMPT,
-                messages=messages,
+                messages=list(self.messages),
                 output_format=Draft,
                 output_config={"effort": "medium"},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
             )
-        except anthropic.AuthenticationError as e:
+        except a.AuthenticationError as e:
             raise DraftError("The API key was rejected. Check ANTHROPIC_API_KEY.") from e
-        except anthropic.RateLimitError as e:
+        except a.RateLimitError as e:
             raise DraftError("Too many requests right now. Try again in a minute.") from e
-        except anthropic.APIStatusError as e:
+        except a.APIStatusError as e:
             raise DraftError(f"The AI service returned an error ({e.status_code}).") from e
-        except anthropic.APIConnectionError as e:
+        except a.APIConnectionError as e:
             raise DraftError("Couldn't reach the AI service.") from e
-
         if resp.stop_reason == "refusal":
             raise DraftError("The AI declined this request.")
-        draft = resp.parsed_output
-        if draft is None:
+        if resp.parsed_output is None:
             raise DraftError("The AI returned something that wasn't a valid draft.")
+        self.messages.append({"role": "assistant", "content": resp.content})
+        return resp.parsed_output
 
+
+class _GeminiBackend:
+    """Gemini via the google-genai SDK, with a JSON response schema built from `Draft`."""
+
+    name = "Gemini"
+
+    def __init__(self, client=None, model: str | None = None):
+        from google import genai
+        from google.genai import errors, types
+
+        self._types, self._errors = types, errors
+        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        self.client = client or genai.Client(api_key=key)
+        self.model = model or os.environ.get("RTI_GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        self.contents: list = []
+
+    def ask(self, user_text: str) -> Draft:
+        t = self._types
+        self.contents.append(t.Content(role="user", parts=[t.Part(text=user_text)]))
+        try:
+            resp = self.client.models.generate_content(
+                model=self.model,
+                contents=list(self.contents),
+                config=t.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=Draft,
+                ),
+            )
+        except self._errors.APIError as e:
+            if e.code in (400, 401, 403) and "key" in str(e).lower():
+                raise DraftError("The API key was rejected. Check GEMINI_API_KEY.") from e
+            if e.code == 404:
+                raise DraftError(
+                    f"Gemini model '{self.model}' was not found. Set RTI_GEMINI_MODEL to a current model."
+                ) from e
+            if e.code == 429:
+                raise DraftError("Too many requests right now (or the free quota is used up). Try again later.") from e
+            raise DraftError(f"The AI service returned an error ({e.code}).") from e
+        except Exception as e:  # network errors surface as httpx exceptions
+            raise DraftError("Couldn't reach the AI service.") from e
+        draft = resp.parsed if isinstance(resp.parsed, Draft) else None
+        if draft is None:
+            try:
+                draft = Draft.model_validate_json(resp.text or "")
+            except Exception as e:
+                raise DraftError(
+                    "The AI returned something that wasn't a valid draft (it may have been blocked)."
+                ) from e
+        self.contents.append(t.Content(role="model", parts=[t.Part(text=resp.text or draft.model_dump_json())]))
+        return draft
+
+
+def ai_provider() -> str | None:
+    """Which AI is configured: 'gemini' if GEMINI_API_KEY/GOOGLE_API_KEY is set, else 'claude' if
+    ANTHROPIC_API_KEY is set, else None. RTI_AI_PROVIDER overrides the choice."""
+    forced = os.environ.get("RTI_AI_PROVIDER", "").strip().lower()
+    if forced in ("gemini", "claude"):
+        return forced
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        return "gemini"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "claude"
+    return None
+
+
+_BACKENDS = {"gemini": _GeminiBackend, "claude": _ClaudeBackend}
+
+
+def draft_with_ai(
+    need: str,
+    *,
+    authority_hint: str = "",
+    provider: str | None = None,
+    client=None,
+    model: str | None = None,
+    max_repairs: int = 1,
+) -> tuple[Draft, list[str]]:
+    """Ask the AI for a Draft, then let the rule checker review it and request fixes.
+
+    `provider` is "gemini" or "claude" (default: whichever key is set, see `ai_provider`).
+    Returns (draft, log) where log is a list of human-readable steps for the UI.
+    Raises DraftError if no usable draft could be produced.
+    """
+    if not need or not need.strip():
+        raise DraftError("Tell me what information you want first.")
+    provider = provider or ai_provider()
+    if provider not in _BACKENDS:
+        raise DraftError("No AI key set. Add GEMINI_API_KEY (or ANTHROPIC_API_KEY).")
+    ai = _BACKENDS[provider](client=client, model=model)
+
+    user = f"<what_i_want_to_know>\n{need.strip()}\n</what_i_want_to_know>"
+    if authority_hint.strip():
+        user += f"\n<office_i_think_holds_it>{authority_hint.strip()}</office_i_think_holds_it>"
+    log: list[str] = []
+
+    for attempt in range(max_repairs + 1):
+        draft = ai.ask(user)
         problems = content_issues(draft)
         if attempt == 0:
-            log.append(f"Claude wrote a draft with {len(draft.points)} point(s).")
+            log.append(f"{ai.name} wrote a draft with {len(draft.points)} point(s).")
         if not problems:
             log.append(
                 "The rule checker found no problems in the requests."
                 if attempt == 0
-                else "Claude fixed everything the checker flagged."
+                else f"{ai.name} fixed everything the checker flagged."
             )
             return draft, log
         log.append("Checker flagged: " + ", ".join(p.title for p in problems) + ".")
         if attempt == max_repairs:
             log.append("Kept the draft; see the checker results below.")
             return draft, log
-
         feedback = "\n".join(
             f"- {p.title}: {p.why} Fix: {p.fix}" + (f' (in: "{p.quote}")' if p.quote else "") for p in problems
         )
-        messages = messages + [
-            {"role": "assistant", "content": resp.content},
-            {
-                "role": "user",
-                "content": "A rule checker reviewed your draft and found these problems:\n"
-                f"{feedback}\nReturn the corrected draft.",
-            },
-        ]
+        user = f"A rule checker reviewed your draft and found these problems:\n{feedback}\nReturn the corrected draft."
     raise AssertionError("unreachable")
 
 

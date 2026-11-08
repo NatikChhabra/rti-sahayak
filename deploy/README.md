@@ -6,4 +6,4 @@ and pressing **Factory rebuild** in the Space settings is all an update needs.
 1. Create a Gradio Space named `rti-sahayak`. (Free accounts get ZeroGPU hardware, which is why `space/app.py` has a placeholder `@spaces.GPU` function.)
 2. Add `space/README.md`, `space/requirements.txt` and `space/app.py` to it.
 3. Optional, for AI drafting: in the Space's **Settings → Variables and secrets**, add a secret
-   `ANTHROPIC_API_KEY`. Without it the app runs in offline mode (rule-based drafting).
+   `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY`). Without it the app runs in offline mode (rule-based drafting).
