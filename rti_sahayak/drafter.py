@@ -24,6 +24,8 @@ from pydantic import BaseModel, Field
 from . import checker, rules
 
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+# Tried in order when the main model is busy or too slow (free-tier 503/504/429).
+DEFAULT_GEMINI_FALLBACKS = ("gemini-3.6-flash", "gemini-3.5-flash-lite")
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 
 
@@ -172,46 +174,69 @@ class _GeminiBackend:
 
         self._types, self._errors = types, errors
         key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        # Free-tier Gemini often answers 503 (overloaded) or 429 for a moment: retry a few times with
-        # backoff, and never let one request hang the app.
+        # Free-tier Gemini is often busy (503) or slow (504). Retry once, give each request a deadline,
+        # and if the model still can't answer, move on to the next model in the list.
         self.client = client or genai.Client(
             api_key=key,
             http_options=types.HttpOptions(
-                timeout=60_000,  # ms
+                timeout=45_000,  # ms
                 retry_options=types.HttpRetryOptions(
-                    attempts=3, initial_delay=2.0, max_delay=20.0, http_status_codes=[429, 500, 502, 503, 504]
+                    attempts=2, initial_delay=2.0, max_delay=10.0, http_status_codes=[429, 500, 502, 503]
                 ),
             ),
         )
         self.model = model or os.environ.get("RTI_GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        env_fb = os.environ.get("RTI_GEMINI_FALLBACKS")
+        fallbacks = [m.strip() for m in env_fb.split(",")] if env_fb is not None else list(DEFAULT_GEMINI_FALLBACKS)
+        self.models = [self.model] + [m for m in fallbacks if m and m != self.model]
         self.contents: list = []
+
+    def _call(self, model: str):
+        t = self._types
+        return self.client.models.generate_content(
+            model=model,
+            contents=list(self.contents),
+            config=t.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=Draft,
+                # Filling a small form doesn't need long thinking, and it makes replies much faster.
+                thinking_config=t.ThinkingConfig(thinking_level=t.ThinkingLevel.LOW),
+            ),
+        )
 
     def ask(self, user_text: str) -> Draft:
         t = self._types
         self.contents.append(t.Content(role="user", parts=[t.Part(text=user_text)]))
-        try:
-            resp = self.client.models.generate_content(
-                model=self.model,
-                contents=list(self.contents),
-                config=t.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    response_mime_type="application/json",
-                    response_schema=Draft,
-                ),
-            )
-        except self._errors.APIError as e:
-            if e.code in (400, 401, 403) and "key" in str(e).lower():
-                raise DraftError("The API key was rejected. Check GEMINI_API_KEY.") from e
-            if e.code == 404:
-                raise DraftError(
-                    f"Gemini model '{self.model}' was not found. Set RTI_GEMINI_MODEL to a current model."
-                ) from e
-            if e.code == 429:
-                raise DraftError("Too many requests right now (or the free quota is used up). Try again later.") from e
-            detail = " ".join(str(e.message or e.status or "").split())[:160]
-            raise DraftError(f"The AI service returned an error ({e.code}{': ' + detail if detail else ''}).") from e
-        except Exception as e:  # network errors surface as httpx exceptions
-            raise DraftError("Couldn't reach the AI service.") from e
+        last: Exception | None = None
+        for model in list(self.models):
+            try:
+                resp = self._call(model)
+            except self._errors.APIError as e:
+                if e.code in (400, 401, 403) and "key" in str(e).lower():
+                    raise DraftError("The API key was rejected. Check GEMINI_API_KEY.") from e
+                if e.code in (404, 429, 500, 502, 503, 504):
+                    last = e  # not found, busy or too slow: try the next model
+                    continue
+                raise DraftError(_api_error_text(e)) from e
+            except Exception as e:  # network errors and client-side timeouts surface as httpx exceptions
+                last = e
+                continue
+            self.model = model
+            self.models = [model] + [m for m in self.models if m != model]  # stick with the one that works
+            break
+        else:
+            if isinstance(last, self._errors.APIError):
+                if last.code == 429:
+                    raise DraftError(
+                        "Too many requests right now (or the free quota is used up). Try again later."
+                    ) from last
+                if last.code == 404 and len(self.models) == 1:
+                    raise DraftError(
+                        f"Gemini model '{self.model}' was not found. Set RTI_GEMINI_MODEL to a current model."
+                    ) from last
+                raise DraftError(_api_error_text(last)) from last
+            raise DraftError("Couldn't reach the AI service.") from last
         draft = resp.parsed if isinstance(resp.parsed, Draft) else None
         if draft is None:
             try:
@@ -222,6 +247,11 @@ class _GeminiBackend:
                 ) from e
         self.contents.append(t.Content(role="model", parts=[t.Part(text=resp.text or draft.model_dump_json())]))
         return draft
+
+
+def _api_error_text(e) -> str:
+    detail = " ".join(str(getattr(e, "message", "") or getattr(e, "status", "") or "").split())[:160]
+    return f"The AI service returned an error ({e.code}{': ' + detail if detail else ''})."
 
 
 def ai_provider() -> str | None:
@@ -271,7 +301,7 @@ def draft_with_ai(
         draft = ai.ask(user)
         problems = content_issues(draft)
         if attempt == 0:
-            log.append(f"{ai.name} wrote a draft with {len(draft.points)} point(s).")
+            log.append(f"{ai.name} ({ai.model}) wrote a draft with {len(draft.points)} point(s).")
         if not problems:
             log.append(
                 "The rule checker found no problems in the requests."

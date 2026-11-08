@@ -92,7 +92,7 @@ pip install -r requirements.txt
 python app.py                         # open http://127.0.0.1:7860
 ```
 
-For AI drafting, set **`GEMINI_API_KEY`** (default model `gemini-3.8-flash`, change it with `RTI_GEMINI_MODEL`) or `ANTHROPIC_API_KEY` (default `claude-opus-5-5`, change it with `RTI_CLAUDE_MODEL`). If both are set, Gemini is used unless `RTI_AI_PROVIDER=claude`. Run the tests with `pip install -r requirements-dev.txt && pytest`.
+For AI drafting, set **`GEMINI_API_KEY`** (default model `gemini-3.8-flash`, change it with `RTI_GEMINI_MODEL`; if it is busy the app falls back to `gemini-3.6-flash`, then `gemini-3.5-flash-lite`, set with `RTI_GEMINI_FALLBACKS`) or `ANTHROPIC_API_KEY` (default `claude-opus-5-5`, change it with `RTI_CLAUDE_MODEL`). If both are set, Gemini is used unless `RTI_AI_PROVIDER=claude`. Run the tests with `pip install -r requirements-dev.txt && pytest`.
 
 Use it from Python:
 
