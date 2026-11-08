@@ -310,10 +310,32 @@ _REGULATOR_HINT = (
 )
 
 
+# Regulators that hold records about private companies (the offices _REGULATOR_HINT points people to).
+_REGULATOR_ADDRESSEE = re.compile(
+    r"(reserve\s+bank|\brbi\b|banking\s+ombudsman|\btrai\b|telecom\s+regulatory|\bdot\b|department\s+of\s+telecom|"
+    r"\bterm\s+cell|education\s+(officer|department|directorate)|\bdeo\b|directorate\s+of\s+(school\s+)?education|\bcbse\b|"
+    r"health\s+(department|services)|\bcmho\b|\brera\b|real\s+estate\s+regulatory|registrar\s+of\s+companies|"
+    r"\bsebi\b|\birdai\b)",
+    re.I,
+)
+
+
+def _addressee(text: str) -> str:
+    """The office the letter is addressed to: the lines after 'To,' up to the subject or a blank line."""
+    m = re.search(r"^\s*To,?\s*$(.*?)(^\s*$|^\s*Subject)", text, re.I | re.M | re.S)
+    if not m:
+        return ""
+    return re.sub(r"(the\s+)?public\s+information\s+officer,?", " ", m.group(1), flags=re.I).strip()
+
+
 def _check_private(text: str) -> list[Issue]:
     m = _PRIVATE.search(text)
     if not m:
         return []
+    to = _addressee(text)
+    to = re.sub(r"<[^>]*>", "", to)  # ignore placeholders like <District Name>
+    if to and not _PRIVATE.search(to) and _REGULATOR_ADDRESSEE.search(to):
+        return []  # addressed to a regulator/government office that holds records about the company: that's fine
     return [
         Issue(
             "PRIVATE_BODY",
