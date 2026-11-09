@@ -84,6 +84,8 @@ def on_draft(need, authority, name, address, email, phone, place, fee_mode):
         # The blanks are left for the user on purpose; don't score the draft down for them.
         report.issues = [i for i in report.issues if i.code != "NO_CONTACT"]
         notes_list.append("Add your name and address under 'Your details' (or fill in the blanks) before you send it.")
+    elif any(i.code == "NO_CONTACT" for i in report.issues):
+        notes_list.append("Add the 6-digit PIN code to your address (or an email) so the reply reaches you.")
     steps = "\n".join(f"- {_esc(s)}" for s in log)
     notes = "\n".join(f"- {_esc(n)}" for n in notes_list)
     guess = (
