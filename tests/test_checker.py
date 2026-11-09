@@ -44,6 +44,22 @@ def test_missing_contact():
     assert "NO_CONTACT" in codes(text)
 
 
+def test_address_without_pin_is_a_warning_not_an_error():
+    text = GOOD.replace(
+        "Applicant: Asha Verma, House No 5, Sarkanda, Bilaspur 495001", "Address: House No 5, Sarkanda, Bilaspur"
+    )
+    issue = next(i for i in check(text).issues if i.code == "NO_CONTACT")
+    assert issue.severity != ERROR and "PIN" in issue.title
+
+
+def test_blank_address_placeholder_is_still_missing_contact():
+    text = GOOD.replace(
+        "Applicant: Asha Verma, House No 5, Sarkanda, Bilaspur 495001", "Address: ________ (with PIN code)"
+    )
+    issue = next(i for i in check(text).issues if i.code == "NO_CONTACT")
+    assert issue.severity == ERROR
+
+
 def test_email_is_enough_contact():
     text = GOOD.replace("Applicant: Asha Verma, House No 5, Sarkanda, Bilaspur 495001", "Reply to asha@example.com")
     assert "NO_CONTACT" not in codes(text)

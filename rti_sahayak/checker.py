@@ -122,9 +122,33 @@ def _has_postal_address(text: str) -> bool:
     return False
 
 
+_ADDRESS_LABEL = re.compile(r"^\s*(address|\u092a\u0924\u093e)\s*:\s*(.*)$", re.I | re.M)
+
+
+def _has_address_without_pin(text: str) -> bool:
+    """The applicant wrote an address, but it has no PIN code (e.g. 'Address: 12 MG Road, Bilaspur')."""
+    for m in _ADDRESS_LABEL.finditer(text):
+        value = re.sub(r"\(.*?\)", "", m.group(2))  # drop '(with PIN code)' hints
+        if re.search(r"[^\W_]", value):  # real text, not just a ________ blank
+            return True
+    tail = [ln for ln in text.splitlines() if ln.strip()][-3:]
+    return any(_ADDRESS_WORD.search(ln) and "," in ln for ln in tail)
+
+
 def _check_contact(text: str) -> list[Issue]:
     if _EMAIL.search(text) or _has_postal_address(text):
         return []
+    if _has_address_without_pin(text):
+        return [
+            Issue(
+                "NO_CONTACT",
+                WARNING,
+                "Your address has no PIN code",
+                "Without a PIN code (or an email) the reply can be delayed or lost in the post.",
+                "Add the 6-digit PIN code to your address, and an email if you have one.",
+                rules.REF["s6_2"],
+            )
+        ]
     return [
         Issue(
             "NO_CONTACT",
